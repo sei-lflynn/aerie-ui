@@ -3,7 +3,6 @@ import AboutModal from '../components/modals/AboutModal.svelte';
 import ActionCreationModal from '../components/modals/ActionCreationModal.svelte';
 import ConfirmActivityCreationModal from '../components/modals/ConfirmActivityCreationModal.svelte';
 import ConfirmModal from '../components/modals/ConfirmModal.svelte';
-import CreateGroupsOrTypesModal from '../components/modals/CreateGroupsOrTypesModal.svelte';
 import CreatePlanBranchModal from '../components/modals/CreatePlanBranchModal.svelte';
 import CreatePlanSnapshotModal from '../components/modals/CreatePlanSnapshotModal.svelte';
 import CreateViewModal from '../components/modals/CreateViewModal.svelte';
@@ -15,7 +14,6 @@ import EditViewModal from '../components/modals/EditViewModal.svelte';
 import ExpansionPanelModal from '../components/modals/ExpansionPanelModal.svelte';
 import ExpansionSequenceModal from '../components/modals/ExpansionSequenceModal.svelte';
 import LibrarySequenceModal from '../components/modals/LibrarySequenceModal.svelte';
-import ManageGroupsAndTypesModal from '../components/modals/ManageGroupsAndTypesModal.svelte';
 import ManagePlanConstraintsModal from '../components/modals/ManagePlanConstraintsModal.svelte';
 import ManagePlanDerivationGroupsModal from '../components/modals/ManagePlanDerivationGroupsModal.svelte';
 import ManagePlanSchedulingConditionsModal from '../components/modals/ManagePlanSchedulingConditionsModal.svelte';
@@ -37,13 +35,7 @@ import { type ActionDefinition } from '../types/actions';
 import type { ActivityDirectiveDeletionMap, ActivityDirectiveId } from '../types/activity';
 import type { User } from '../types/app';
 import type { ExpansionSequence } from '../types/expansion';
-import type { ExternalEventType } from '../types/external-event';
-import type {
-  DerivationGroup,
-  ExternalSourcePkey,
-  ExternalSourceSlim,
-  ExternalSourceType,
-} from '../types/external-source';
+import type { DerivationGroup, ExternalSourcePkey, ExternalSourceSlim } from '../types/external-source';
 import type { ModalElement, ModalElementValue } from '../types/modal';
 import type {
   Plan,
@@ -56,7 +48,6 @@ import type {
 import type { PlanSnapshot } from '../types/plan-snapshot';
 import type { Tag } from '../types/tags';
 import type { ViewDefinition } from '../types/view';
-import effects from './effects';
 import type { ArgumentsMap } from '../types/parameter';
 import RunActionResultsModal from '../components/modals/RunActionResultsModal.svelte';
 import CancelActionRunModal from '../components/modals/CancelActionRunModal.svelte';
@@ -199,40 +190,6 @@ export async function showConfirmModal(
 }
 
 /**
- * Shows a CreateGroupsOrTypesModal component with the supplied arguments.
- */
-export async function showCreateGroupsOrTypes(user: User | null): Promise<ModalElementValue> {
-  return new Promise(resolve => {
-    if (browser) {
-      const target: ModalElement | null = document.querySelector('#svelte-modal');
-
-      if (target) {
-        const manageGroupsAndTypesModal = new CreateGroupsOrTypesModal({
-          props: { user },
-          target,
-        });
-        target.resolve = resolve;
-
-        manageGroupsAndTypesModal.$on('close', () => {
-          target.replaceChildren();
-          target.resolve = null;
-          target.removeAttribute('data-dismissible');
-          manageGroupsAndTypesModal.$destroy();
-        });
-        manageGroupsAndTypesModal.$on('add', (e: CustomEvent<{ derivationGroupName: string }[]>) => {
-          target.replaceChildren();
-          target.resolve = null;
-          resolve({ confirm: true, value: e.detail });
-          manageGroupsAndTypesModal.$destroy();
-        });
-      }
-    } else {
-      resolve({ confirm: false });
-    }
-  });
-}
-
-/**
  * Shows a DeleteExternalSourceModal component with the supplied arguments.
  */
 export async function showDeleteExternalSourceModal(
@@ -275,17 +232,14 @@ export async function showDeleteExternalSourceModal(
   });
 }
 
-export async function showDeleteDerivationGroupModal(
-  derivationGroup: DerivationGroup,
-  user: User | null,
-): Promise<ModalElementValue> {
+export async function showDeleteDerivationGroupModal(derivationGroups: DerivationGroup[]): Promise<ModalElementValue> {
   return new Promise(resolve => {
     if (browser) {
       const target: ModalElement | null = document.querySelector('#svelte-modal');
 
       if (target) {
         const deleteDerivationGroupModal = new DeleteDerivationGroupModal({
-          props: { derivationGroup },
+          props: { derivationGroups },
           target,
         });
         target.resolve = resolve;
@@ -299,7 +253,6 @@ export async function showDeleteDerivationGroupModal(
         deleteDerivationGroupModal.$on('confirm', () => {
           target.resolve = null;
           resolve({ confirm: true });
-          effects.deleteDerivationGroup(derivationGroup, user);
           deleteDerivationGroupModal.$destroy();
         });
       }
@@ -310,10 +263,9 @@ export async function showDeleteDerivationGroupModal(
 }
 
 export async function showDeleteExternalEventSourceTypeModal(
-  itemToDelete: ExternalEventType | ExternalSourceType,
-  itemToDeleteTypeName: 'External Event Type' | 'External Source Type',
-  associatedItems: string[],
-  user: User | null,
+  itemsToDelete: string[],
+  itemsToDeleteTypeName: 'External Event Type(s)' | 'External Source Type(s)',
+  associatedItems: Set<string>,
 ): Promise<ModalElementValue> {
   return new Promise(resolve => {
     if (browser) {
@@ -323,8 +275,8 @@ export async function showDeleteExternalEventSourceTypeModal(
         const deleteExternalEventSourceTypeModal = new DeleteExternalEventSourceTypeModal({
           props: {
             associatedItems,
-            itemToDelete,
-            itemToDeleteTypeName,
+            itemsToDelete,
+            itemsToDeleteTypeName,
           },
           target,
         });
@@ -339,11 +291,6 @@ export async function showDeleteExternalEventSourceTypeModal(
         deleteExternalEventSourceTypeModal.$on('confirm', () => {
           target.resolve = null;
           resolve({ confirm: true });
-          if (itemToDeleteTypeName === 'External Event Type') {
-            effects.deleteExternalEventType(itemToDelete.name, user);
-          } else {
-            effects.deleteExternalSourceType(itemToDelete.name, user);
-          }
           deleteExternalEventSourceTypeModal.$destroy();
         });
       }
@@ -417,40 +364,6 @@ export async function showManagePlanDerivationGroups(user: User | null): Promise
           target.resolve = null;
           resolve({ confirm: true, value: e.detail });
           managePlanDerivationGroupsModal.$destroy();
-        });
-      }
-    } else {
-      resolve({ confirm: false });
-    }
-  });
-}
-
-/**
- * Shows a ManageGroupsAndTypes component with the supplied arguments.
- */
-export async function showManageGroupsAndTypes(user: User | null): Promise<ModalElementValue> {
-  return new Promise(resolve => {
-    if (browser) {
-      const target: ModalElement | null = document.querySelector('#svelte-modal');
-
-      if (target) {
-        const manageGroupsAndTypesModal = new ManageGroupsAndTypesModal({
-          props: { user },
-          target,
-        });
-        target.resolve = resolve;
-
-        manageGroupsAndTypesModal.$on('close', () => {
-          target.replaceChildren();
-          target.resolve = null;
-          target.removeAttribute('data-dismissible');
-          manageGroupsAndTypesModal.$destroy();
-        });
-        manageGroupsAndTypesModal.$on('add', (e: CustomEvent<{ derivationGroupName: string }[]>) => {
-          target.replaceChildren();
-          target.resolve = null;
-          resolve({ confirm: true, value: e.detail });
-          manageGroupsAndTypesModal.$destroy();
         });
       }
     } else {
