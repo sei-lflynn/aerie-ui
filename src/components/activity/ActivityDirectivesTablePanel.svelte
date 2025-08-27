@@ -275,43 +275,6 @@
     }
   }
 
-  function onColumnToggleChange({ detail: { field, isHidden } }: CustomEvent) {
-    const activityColumnStates: ColumnState[] = activityDirectivesTable?.columnStates ?? [];
-    const existingColumnStateIndex: number = activityColumnStates.findIndex(
-      (columnState: ColumnState) => field === columnState.colId,
-    );
-    if (existingColumnStateIndex >= 0) {
-      viewUpdateActivityDirectivesTable({
-        columnStates: [
-          ...activityColumnStates.slice(0, existingColumnStateIndex),
-          {
-            ...activityColumnStates[existingColumnStateIndex],
-            hide: isHidden,
-          },
-          ...activityColumnStates.slice(existingColumnStateIndex + 1),
-        ],
-      });
-    } else {
-      viewUpdateActivityDirectivesTable({
-        columnStates: [
-          ...activityColumnStates,
-          {
-            colId: field,
-            hide: isHidden,
-          },
-        ],
-      });
-    }
-
-    setTimeout(() => {
-      if (autoSizeColumns === 'fit') {
-        autoSizeContent();
-      } else if (autoSizeColumns === 'fill') {
-        autoSizeSpace();
-      }
-    }, 0);
-  }
-
   function onColumnMoved() {
     const columnStates = dataGrid?.getColumnState();
     const updatedColumnStates = (columnStates ?? []).filter(columnState => columnState.colId !== 'actions');
@@ -350,6 +313,31 @@
     viewTogglePanel({ state: true, type: 'right', update: { rightComponentTop: 'ActivityFormPanel' } });
   }
 
+  function onColumnsChanged({
+    detail: { columns },
+  }: CustomEvent<{ columns: { field: any; isHidden: boolean; name: string }[] }>) {
+    const activityColumnStates: ColumnState[] = activityDirectivesTable?.columnStates ?? [];
+    const newActivityColumnStates = activityColumnStates.map(columnState => {
+      return { ...columnState, hide: columns.find(column => columnState.colId === column.field)?.isHidden ?? false };
+    });
+
+    viewUpdateActivityDirectivesTable({
+      columnStates: newActivityColumnStates.filter(filterEmpty),
+    });
+
+    requestAutoSize();
+  }
+
+  function requestAutoSize() {
+    setTimeout(() => {
+      if (autoSizeColumns === 'fit') {
+        autoSizeContent();
+      } else if (autoSizeColumns === 'fill') {
+        autoSizeSpace();
+      }
+    }, 0);
+  }
+
   function onShowHideAllColumns({ detail: { hide } }: CustomEvent<{ hide: boolean }>) {
     viewUpdateActivityDirectivesTable({
       columnStates: derivedColumnDefs
@@ -368,6 +356,7 @@
         })
         .filter(filterEmpty),
     });
+    requestAutoSize();
   }
 
   function toggleAutoSizeContent() {
@@ -429,7 +418,7 @@
         </button>
       </div>
       <ActivityTableMenu
-        on:toggle-column={onColumnToggleChange}
+        on:columns-changed={onColumnsChanged}
         on:show-hide-all-columns={onShowHideAllColumns}
         columnDefs={derivedColumnDefs}
         columnStates={activityDirectivesTable?.columnStates}
